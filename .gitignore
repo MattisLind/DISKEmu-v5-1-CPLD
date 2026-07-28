@@ -1,0 +1,16 @@
+*.abs
+*.doc
+*.fit
+*.io
+*.jed
+*.lst
+*.mx
+*.pin
+*.pla
+*.sim
+*.tt2
+*.tt3
+*.txt
+*.log
+Archive/*
+

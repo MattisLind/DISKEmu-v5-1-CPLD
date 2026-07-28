@@ -1,0 +1,368 @@
+Name     DISKEmuDMA ;
+PartNo   01 ;
+Date     03.05.2026 ;
+Revision 01 ;
+Designer cbscpe ;
+Company  PRIVAT ;
+Assembly None ;
+Location ATHOME ;
+Device   f1508isptqfp100 ;
+PROPERTY ATMEL {SOFT_BUFFER=I14, I7};
+
+PROPERTY ATMEL {Cascade_logic ON};
+PROPERTY ATMEL {Preassign KEEP};
+PROPERTY ATMEL {SOFT_BUFFER=I14, I7, BUSEN};
+PROPERTY ATMEL {open_collector=BRPLY, BIRQ, BSACK};
+
+/*
+	CPLD Design File for the new generation Q-BUS disk emulator
+	
+	Copyright (C) 2025 Peter Schranz
+	
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+	
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+	
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+    
+ */
+
+
+/*
+
+	Universal Disk Emulator for Q-BUS
+	---------------------------------
+	
+	The universal disk emulator for the QBUS64 is a project that has been started
+	after the successfull proof of concept of the MSCP Emulator. This new Q-BUS
+	card will be able to emulate either a RLV12 or an MSCP disk controller with
+	disks attached to it. 
+	
+	Already the RLV12 Emulator V2 with only through hole components required
+	two CPLDs as there were not enough pins and resources available in a single
+	ATF1508 in the PLCC-84 package. 
+
+	PLCC packages have been discontinued and so we are going to use TQFP packages.
+	As with the Q-BUS RLV12 emulator we split the function into two CPLDs, one
+	larger ATF1508 and one smaller ATF1504. However we will no longer seperate the
+	receive and the transmit BDAL path. Instead we export the DMA state machine
+	into the smaller CPLD and keep the rest in the larger CPLD.
+
+	
+
+	.\cupl.bat Z:\DISKEmu-v5-0\DISKEMUMAIN.PLD
+
+	C:\WinCUPL\WinCupl\Fitters\fit1508 Z:\DISKEmu-v5-0\DISKEMUMAIN.tt2 -CUPL -dev P1508T100 -JTAG ON
+	
+	2026-05-03	Initial Version
+	
+ */
+/************************** Q-BUS Interface *******************************************/
+PIN       60  =  BDAL0;
+PIN       56  =  BDAL1;
+PIN       57  =  BDAL2;
+PIN       58  =  BDAL3;
+PIN       55  =  BDAL4;
+PIN       53  =  BDAL5;
+PIN       49  =  BDAL6;
+PIN       52  =  BDAL7;
+PIN       54  =  BDAL8;
+PIN       20  =  BDAL9;
+PIN       33  =  BDAL10;
+PIN       36  =  BDAL11;
+PIN       24  =  BDAL12;
+PIN       21  =  BDAL13;
+PIN       32  =  BDAL14;
+PIN       22  =  BDAL15;
+PIN       50  =  BDAL16;
+PIN       46  =  BDAL17;
+PIN       44  =  BDAL18;
+PIN       41  =  BDAL19;
+PIN       28  =  BDAL20;
+PIN       31  =  BDAL21;
+
+PIN        19 = !BSYNC;
+PIN        25 = !BBS7;
+PIN        27 = !BDIN;
+PIN        30 = !BDOUT;
+PIN        40 = !BWTBT;
+PIN        16 = !BINIT;
+PIN        48 = !BIAKI;
+
+PIN        23 = !BRPLY;
+PIN        37 = !BIAKO;
+PIN        29 = !BIRQ;
+PIN        17 = !BSACK;
+
+/************************** AVR Interface *********************************************/
+PIN        90 =  CLK;	/* Master Clock							*/
+PIN        88 =  RD;	/* Read CPLD device register					*/
+PIN        87 =  WR;	/* Write CPLD device register					*/
+PIN        97 =  AD0;	/* Register Data						*/
+PIN        96 =  AD1;
+PIN        94 =  AD2;
+PIN        93 =  AD3;
+PIN        92 =  AD4;
+PIN        81 =  AD5;
+PIN        80 =  AD6;
+PIN        79 =  AD7;
+PIN        78 =  RS0;
+PIN        77 =  RS1;
+PIN        76 =  RS2;
+
+PIN        75 =  INTI;	/* IACK Cycle Interrupt						*/
+PIN        72 = !INTQ;	/* Q-BUS Cycle Interrupt					*/
+PIN        71 =  ACK;	/* Acknowledge interrupt					*/
+PIN        70 =  CRDY;	/* Controller ready, if de-asserted Q-Bus reads return zero	*/
+PIN        83 =  MSCP;	/* asserted: MSCP Emulation, de-asserted: RVL12 Emulation	*/
+PIN        69 =  IRQ;	/* Request interrupt						*/
+PIN        84 =  INIT;
+
+/************************** CPLD-to-CPLD  *********************************************/
+PIN        68 =  DMARD;
+PIN        67 =  LD;	/* DMA Load Q-BUS data to DMA data register			*/
+PIN        65 =  TADDR;	/* DMA Address Active						*/
+PIN        64 =  TSACK;	/* DMA Active							*/
+PIN        63 =  TDOUT;	/* DMA Data Out							*/
+
+/*
+	Make sure connected but unused signals are defined
+ */
+PIN        35 =  EDMGO;
+PIN        45 =  EDMGI;
+PIN        47 =  EDMR;
+
+PIN        42 =  EOUT;
+
+EOUT          =  EDMGO & EDMGI & EDMR;
+
+PINNODE       = [DD15..0]     ; /* DMA Data Register A                             */
+PINNODE       = [DQ15..0]     ; /* QBUS Data Register B                            */
+
+PINNODE       = [A21..1]      ; /* DMA Address                                     */
+PINNODE       =  I7;
+PINNODE       =  I14;
+PINNODE       =  CSR;
+PINNODE       =  ENA;		/* Enable Q-Bus Data Register, else return zero    */
+PINNODE       =  ROM;
+PINNODE       =  DACK;
+PINNODE       =  CWTBT;
+PINNODE       =  BUSEN;
+PINNODE       = [C6..1]:
+PINNODE       =  CWTBT;
+PINNODE       =  TDOUT1;
+PINNODE       =  RIAKI1;
+PINNODE       =  RIAKI2;
+
+FIELD  RS     = [RS2..0];
+
+/************************** Definitions   *********************************************/
+$DEFINE MSCPADDR  'o'172150..172153
+$DEFINE RLV12ADDR 'o'174400..174417
+/*$DEFINE ROMADDR   'o'173000..173017*/
+
+
+
+/************************** Equations     *********************************************/
+[C6..1].d     = [BDAL6..1].io;
+[C6..1].ck    =  BSYNC;
+
+CWTBT.d       =  BWTBT;
+CWTBT.ck      =  BSYNC;
+
+INTQ.d        =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !MSCP &  CRDY
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP          &  BWTBT
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP          & !BWTBT & !BDAL1.io
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP &  CRDY  & !BWTBT &  BDAL1.io;
+
+$IFDEF ROMADDR
+APPEND
+INTQ.d        =  RBS7 & [RDAL12..1]:[ROMADDR];
+$ENDIF
+        
+INTQ.ck       =  BSYNC;
+INTQ.ar       =  ACK;
+
+CSR.d         =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !MSCP  
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP;
+
+$IFDEF ROMADDR
+APPEND
+CSR.d         =  RBS7 & [RDAL12..1]:[ROMADDR];
+$ENDIF
+
+CSR.ck        =  BSYNC;
+
+BRPLY         =  CSR &  BSYNC & !INTQ &  BDIN
+              #  CSR &  BSYNC & !INTQ &  BDOUT;
+
+$IFDEF ROMADDR
+ROM.d         = [BDAL12..1].io:[ROMADDR];
+ROM.ck        =  BSYNC;
+$ENDIF
+
+ENA.d         =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !MSCP & !BWTBT &  CRDY
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP & !BWTBT          & !BDAL1.io   
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP & !BWTBT &  CRDY  &  BDAL1.io;
+
+$IFDEF ROMADDR
+APPEND
+ENA.d         =  BBS7 & [BDAL12..1].io:[ROMADDR]           & !BWTBT;
+$ENDIF
+
+ENA.ck        =  BSYNC;
+
+/*
+
+ */
+BSACK         =  TSACK;
+INIT          = !BINIT;
+/*
+	Interrupt logic
+	
+ */
+RIAKI1.d        =  BIAKI;
+RIAKI2.d        =  RIAKI1;
+
+RIAKI1.ck       =  CLK;
+RIAKI2.ck       =  CLK;
+ 
+DACK.d		=  IRQ;
+DACK.ck		=  BDIN & !TSACK;
+DACK.ar		=  BINIT;
+
+BIAKO		=  BIAKI    & !DACK;
+BIRQ		=  IRQ;
+
+INTI.d		= !DACK;
+INTI.ck		=  BIAKI;
+INTI.ap		=  ACK;
+
+APPEND
+BRPLY		=  RIAKI2 &  DACK  &  INTI &  BDIN;
+
+/*
+	Q-Bus Data Register
+ */
+[DQ7..0].d	=  [AD7..0].io;
+[DQ15..8].d	=  [AD7..0].io;
+[DQ15..0].ck	=  WR;
+[DQ7..0].ce	=  RS:['d'0];
+[DQ15..8].ce	=  RS:['d'1];
+
+/*
+	DMA Data Register
+ */
+[DD7..0].d	=  [AD7..0].io;
+[DD15..8].d	=  [AD7..0].io;
+[DD15..0].ck	=  WR;
+[DD7..0].ce	=  RS:['d'2];
+[DD15..8].ce	=  RS:['d'3];
+
+[DD15..0].ar	=  LD & ![BDAL15..0].io;
+[DD15..0].ap	=  LD &  [BDAL15..0].io;
+
+/*
+	Collect unused inputs to prevent the CPLD enables the buffers
+ */
+DMARD.ar	=  WR  &  RS:['d'4] & !AD0.io;
+DMARD.ap	=  WR  &  RS:['d'4] &  AD0.io;
+DMARD.ck	= 'b'0;
+DMARD.d		= 'b'0;
+
+[A7..1].ar	=  WR  &  RS:['d'4] & ![AD7..1].io;
+[A7..1].ap	=  WR  &  RS:['d'4] &  [AD7..1].io;
+
+[A15..8].ar	=  WR  &  RS:['d'5] & ![AD7..0].io;
+[A15..8].ap	=  WR  &  RS:['d'5] &  [AD7..0].io;
+
+[A21..16].ar	=  WR  &  RS:['d'7] & ![AD5..0].io;
+[A21..16].ap	=  WR  &  RS:['d'7] &  [AD5..0].io;
+
+/*
+	The MCU can read the 16-bit Q-Bus data using the two register address 0 
+	and 1 for the even and odd byte respectively. Register address 4 contains 
+	the latched CSR offset. RLV12 does not support byte writes, so we do not
+	care about BWTBT during the DATO data phase. 
+ */
+[AD7..0]	=  RS:['d'0] &  [BDAL7..0].io
+		#  RS:['d'1] &  [BDAL15..8].io
+		#  RS:['d'2] &  [DD7..0]
+		#  RS:['d'3] &  [DD15..8]
+		#  RS:['d'4] &  ['b'0, C6, C5, C4, C3, C2, C1, CWTBT];
+
+$IFDEF ROMADDR
+APPEND
+AD7             =  RS:['d'4] &  ROM;
+$ENDIF
+
+[AD7..0].oe	=  RD;
+
+/*
+	Synchronous counter for DMA address which is updated after every DMA 
+	cycle. The address is incremented whenever the DMA cycle has finished.
+ */	
+[A21..1].ck	= !TSACK;
+
+A1.t		= 'b'1;
+A2.t		= A1;
+A3.t		= A1  & A2;
+A4.t		= A1  & A2  &  A3;
+A5.t		= A1  & A2  &  A3  & A4;
+A6.t		= A1  & A2  &  A3  & A4  & A5;
+A7.t		= A1  & A2  &  A3  & A4  & A5  & A6;
+I7		= A1  & A2  &  A3  & A4  & A5  & A6  & A7;
+
+A8.t		= I7;
+A9.t		= I7  & A8;
+A10.t		= I7  & A8  &  A9;
+A11.t		= I7  & A8  &  A9  & A10;
+A12.t		= I7  & A8  &  A9  & A10 & A11;
+A13.t		= I7  & A8  &  A9  & A10 & A11 & A12;
+A14.t		= I7  & A8  &  A9  & A10 & A11 & A12 & A13;
+I14		= I7  & A8  &  A9  & A10 & A11 & A12 & A13 & A14;
+
+A15.t		= I14;
+A16.t		= I14 & A15;
+A17.t		= I14 & A15 & A16;
+A18.t		= I14 & A15 & A16 & A17;
+A19.t		= I14 & A15 & A16 & A17 & A18;
+A20.t		= I14 & A15 & A16 & A17 & A18 & A19;
+A21.t		= I14 & A15 & A16 & A17 & A18 & A19 & A20;
+
+/*
+	Q-Bus Output Select and Output Enable
+	
+	For DMA DATO cycles note that date must be present on the data bus
+	for at least 100ns after BDOUT has been de-asserted. Therefore we
+	use a delayed TDOUT for the mux input and the output enable.
+	
+ */
+TDOUT1.d        =  TDOUT;
+TDOUT1.ck       =  CLK;
+
+[BDAL15..0]	= !BIAKI & !TSACK  &  CSR     &  [DQ15..0]       &  ENA
+		# !BIAKI &  TSACK  &  TADDR   &  [A15..1, 'b'0]
+		# !BIAKI &  TSACK  &  TDOUT1  &  [DD15..0];
+
+APPEND
+[BDAL8..2]	=  BIAKI                      &  [DQ8..2];		
+
+
+[BDAL21..16]	= !BIAKI &  TSACK  &  TADDR   &  [A21..16];
+
+
+BUSEN           = !BIAKI & !TSACK &  CSR      & BDIN
+                # !BIAKI &  TSACK &  TADDR
+                # !BIAKI &  TSACK &  TDOUT1
+                #  BIAKI &  DACK              & BDIN; 
+
+[BDAL15..0].oe  =  BUSEN;
+[BDAL21..16].oe =           TSACK &  TADDR;

@@ -1,0 +1,334 @@
+Name     DISKEmuDMA ;
+PartNo   01 ;
+Date     15.05.2026 ;
+Revision 01 ;
+Designer cbscpe ;
+Company  PRIVAT ;
+Assembly None ;
+Location ATHOME ;
+Device   f1504isptqfp44 ;
+
+PROPERTY ATMEL {Cascade_logic ON};
+PROPERTY ATMEL {Preassign KEEP};
+PROPERTY ATMEL {open_collector=BDMR, BDOUT, BDIN, BSYNC, BRPLY, BWTBT};
+
+/*
+    CPLD Design File for the new generation Q-BUS disk emulator
+    
+    Copyright (C) 2025 Peter Schranz
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+    
+ */
+
+
+/*
+
+	Universal Disk Emulator for Q-BUS
+	---------------------------------
+	
+	The universal disk emulator for the QBUS64 is a project that has been started
+	after the successfull proof of concept of the MSCP Emulator. This new Q-BUS
+	card will be able to emulate either a RLV12 or an MSCP disk controller with
+	disks attached to it. 
+	
+	Already the RLV12 Emulator V2 with only through hole components required
+	two CPLDs as there were not enough pins and resources available in a single
+	ATF1508 in the PLCC-84 package. 
+	
+	In the meantime the PLCC packages have been discontinued. In other words
+	I will have to switch to TQFP packages. But instead of using again a ATF1508
+	together with a ATF1504 to have enough resources I plan to use two ATF1508
+	and add some additional features, like a dual word DMA and full ROM space
+
+	.\cupl.bat Z:\DISKEmu-v5-0\DISKEMUDMA.PLD
+
+	C:\WinCUPL\WinCupl\Fitters\fit1504 Z:\DISKEmu-v5-0\DISKEMUDMA.tt2 -CUPL -dev P1504T44 -JTAG ON
+	
+	2026-05-11	Initial Version
+	
+ */
+
+/************************** Q-BUS Interface *******************************************/
+
+
+PIN        43 = !BSYNC;
+PIN        18 = !BWTBT;
+PIN         2 = !BBS7;
+PIN        12 = !BINIT;
+PIN        44 = !BDIN;
+PIN        11 = !BDOUT;	/* DMA DOUT Phase, also used by the MAIN CPLD			*/
+PIN        42 = !BRPLY;
+PIN        14 = !BDMGI;
+PIN        13 = !BDMGO;
+PIN        15 =  BDMR;
+PIN         8 =  TSACK;	/* Signal to CPLD MAIN						*/
+
+PIN        37 =  CLK;	/* Master Clock                                         	*/
+PIN        35 =  ABO;	/* Abort DMA, reset states and signals				*/
+PIN        34 =  DMR;	/* DMA Request							*/
+PIN        30 =  DMG;	/* DMA Granted, i.e. DMA has finished				*/
+
+PIN         3 =  DMARD;	/* DMA Direction a direct signal now from the MCU		*/
+PIN         5 =  LD;	/* Load Data from Q-Bus to DMA Data Register			*/
+PIN         6 =  TADDR;	/* Emit DMA Address						*/
+PIN        10 =  TDOUT;
+
+PINNODE       =  DMA0;
+PINNODE       =  DMA1;
+PINNODE       =  DMA2;
+PINNODE       =  DMA3;
+PINNODE       =  DMA4;
+PINNODE       =  DMA5;
+PINNODE       =  DMA6;
+PINNODE       =  SYNC;
+PINNODE       =  DMGI;
+PINNODE       =  RPLY;
+PINNODE       =  SYNCR;
+PINNODE       =  DMGIR;
+PINNODE       =  RPLYR;
+
+FIELD  DMA    = [DMA6..0];	/* DMA State Machine                                  */
+
+/*
+	CPLD controlled DMA state machine
+
+ 	The rising edge of DMR from the MCU triggers BDMR of the Q-Bus when
+ 	the DMA is granted BDMR is cleared but DMR will be kept asserted by
+ 	the MCU until the MCU has finished the DMA. Used to control the state
+ 	machine.
+  */
+BDMR.d        = 'b'0;
+BDMR.ck       =  DMR;
+BDMR.ap       =  TSACK 
+              #  BINIT 
+              #  ABO;
+ 
+BSYNC.ck      =  CLK;
+TDOUT.ck      =  CLK;
+BDIN.ck       =  CLK;
+/*
+	Synchronous Signals
+ */
+DMGI.ck       =  CLK;
+RPLY.ck       =  CLK;
+SYNC.ck       =  CLK;
+
+DMGIR.ck      =  CLK;
+RPLYR.ck      =  CLK;
+SYNCR.ck      =  CLK;
+
+DMA.ck        =  CLK;
+DMG.ck        =  CLK;
+LD.ck         =  CLK;
+DMADATA.ck    =  CLK;
+TADDR.ck      =  CLK;
+ 
+DMA.ar        =  BINIT.io 
+              #  ABO;
+ /*
+ 	Latched BDMGI and BRPLY as we need a stable DMGI and RPLY for the state machine
+  */
+DMGIR.d       =  BDMGI;
+RPLYR.d       =  BRPLY;
+SYNCR.d       =  BSYNC.io;
+
+DMGI.d        =  DMGIR;
+RPLY.d        =  RPLYR;
+SYNC.d        =  SYNCR;
+/*
+	Before the first DMA in a series the MCU must first the start DMA address
+	and the direction bit DMARD. 
+
+	Then for DMA writes (DMARD = 'b'0) the MCU first loads the DMA Data register
+	with the value and asserts DMR. This will assert BDMR. For DMA writes the
+	MCU just needs to assert DMR.
+	
+	When BDMR is asserted the CPU will eventually start a DMA grant cycle and
+	asserts BDMGO which is connected to BDMGI of the first device which then
+	generates itself a BDMGO if it is not the requesting device which then 
+	propagates through all devices until it reaches the device that requested
+	the DMA.
+	
+	The state machine continuously checks for BDMGI and if asserted checks
+	if we requested a DMA. If not we just assert BDMGO and wait for BDMGI
+	to be deasserted.
+	
+	If we have requested DMA then we will proceed with either a DMA word 
+	write (DMARD = 'b'0) or a DMA read (DMARD = 'b'1) cycle. The state machine
+	consists of 6 flip-flops. The states are selected in a way that DMA5 is
+	asserted during the complete DMA cycle, in fact this corresponds to the 
+	TSACK signal. DMA4 is set according to DMARD. DMA3 is de-asserted during the
+	addressing phase and asserted during the data phase
+
+ */
+sequence DMA {
+  
+   PRESENT 'h'00 IF !DMGI                    NEXT 'h'00;
+                 IF  DMGI  & !DMR            NEXT 'h'01;
+                 IF  DMGI  &  DMR            NEXT 'h'02;
+   
+ 
+   PRESENT 'h'01 IF !DMGI                    NEXT 'h'00;
+                 IF  DMGI OUT BDMGO;         NEXT 'h'01;
+ 
+   PRESENT 'h'02 IF !DMARD                   NEXT 'h'20;
+                 IF  DMARD                   NEXT 'h'30;
+                 
+/*
+   PRESENT 'h'02 IF           RPLY  #  SYNC
+                                             NEXT 'h'02;
+                 IF !DMARD & !RPLY  & !SYNC
+                                             NEXT 'h'20;
+                 IF  DMARD & !RPLY  & !SYNC
+                                             NEXT 'h'30;
+ */                
+
+
+/*
+     DMG
+     
+     At the end of the DMA cycle the state machine asserts DMG to let the MCU
+     know that the DMA has ended. The MCU then must de-assert DMR before it can
+     start another DMA. This is placed to a state with TSACK de-asserted to 
+     release the bus while we are waiting for the MCU.
+*/
+
+   PRESENT 'h'10 IF  DMR                     NEXT 'h'10           OUT DMG;
+                 IF !DMR                     NEXT 'h'00;
+
+/*
+
+ */
+ 	PRESENT 'h'04                        NEXT 'h'00;
+	PRESENT 'h'05                        NEXT 'h'00;
+	PRESENT 'h'06                        NEXT 'h'00;
+	PRESENT 'h'07                        NEXT 'h'00;
+	PRESENT 'h'08                        NEXT 'h'00;
+	PRESENT 'h'09                        NEXT 'h'00;
+	PRESENT 'h'0A                        NEXT 'h'00;
+	PRESENT 'h'0B                        NEXT 'h'00;
+	PRESENT 'h'0C                        NEXT 'h'00;
+	PRESENT 'h'0D                        NEXT 'h'00;
+	PRESENT 'h'0E                        NEXT 'h'00;
+	PRESENT 'h'0F                        NEXT 'h'00;
+
+/*	PRESENT 'h'10                        NEXT 'h'00;	*/
+	PRESENT 'h'11                        NEXT 'h'00;
+	PRESENT 'h'12                        NEXT 'h'00;
+	PRESENT 'h'13                        NEXT 'h'00;
+	PRESENT 'h'14                        NEXT 'h'00;
+	PRESENT 'h'15                        NEXT 'h'00;
+	PRESENT 'h'16                        NEXT 'h'00;
+	PRESENT 'h'17                        NEXT 'h'00;
+	PRESENT 'h'18                        NEXT 'h'00;
+	PRESENT 'h'19                        NEXT 'h'00;
+	PRESENT 'h'1A                        NEXT 'h'00;
+	PRESENT 'h'1B                        NEXT 'h'00;
+	PRESENT 'h'1C                        NEXT 'h'00;
+	PRESENT 'h'1D                        NEXT 'h'00;
+	PRESENT 'h'1E                        NEXT 'h'00;
+	PRESENT 'h'1F                        NEXT 'h'00;
+
+/*
+	Write
+     
+	According to the Q22 bus specifications the master must place first
+	the address onto the bus and earliest 150ns later assert BSYNC. Then
+	the master must keep address for another 100ns. 
+     
+*/
+   PRESENT 'h'20                             NEXT 'h'21           OUT TADDR;
+  
+   PRESENT 'h'21                             NEXT 'h'22           OUT TADDR;
+ 
+   PRESENT 'h'22                             NEXT 'h'23           OUT TADDR;
+ 
+   PRESENT 'h'23                             NEXT 'h'24 OUT BSYNC OUT TADDR;
+ 
+   PRESENT 'h'24                             NEXT 'h'25 OUT BSYNC OUT TADDR;
+ 
+/*
+	Then the master may immediately place the data onto the bus and 
+	also assert BDOUT. Then the slave must assert BRPLY within 8usec.
+	Once the slave has asserted BRPLY the master must wait 150ns before
+	it can de-assert BDOUT. Note that in our case RPLY is already delayed
+	by 100ns as we have a 2 stage synchronizer between BRPYL and RPLY.
+	Thus we do not have to wait another three clock cycles before de-asserting
+	BDOUT. After BDOUT has been deasserted data should be left on the
+	bus for another 100ns and then BSYNC my be de-asserted. 
+ */
+
+   PRESENT 'h'25                             NEXT 'h'28 OUT BSYNC OUT TDOUT;
+
+	PRESENT 'h'26                        NEXT 'h'00;
+	PRESENT 'h'27                        NEXT 'h'00;
+ 
+   PRESENT 'h'28 IF !RPLY                    NEXT 'h'28 OUT BSYNC OUT TDOUT;
+                 IF  RPLY                    NEXT 'h'29 OUT BSYNC OUT TDOUT;
+ 
+   PRESENT 'h'29                             NEXT 'h'2A OUT BSYNC OUT TDOUT;
+ 
+   PRESENT 'h'2A                             NEXT 'h'2B OUT BSYNC OUT TDOUT;
+ 
+   PRESENT 'h'2B IF  RPLY                    NEXT 'h'2B OUT BSYNC;
+                 IF !RPLY                    NEXT 'h'2C;
+ 
+   PRESENT 'h'2C                             NEXT 'h'10           OUT DMG;
+ 
+	PRESENT 'h'2D                        NEXT 'h'00;
+	PRESENT 'h'2E                        NEXT 'h'00;
+	PRESENT 'h'2F                        NEXT 'h'00;
+ 
+  
+/*
+     Read
+*/
+   PRESENT 'h'30                             NEXT 'h'31 OUT TADDR;
+  
+   PRESENT 'h'31                             NEXT 'h'32 OUT TADDR;
+ 
+   PRESENT 'h'32                             NEXT 'h'33 OUT BSYNC OUT TADDR;
+ 
+   PRESENT 'h'33                             NEXT 'h'34 OUT BSYNC OUT TADDR;
+ 
+   PRESENT 'h'34                             NEXT 'h'35 OUT BSYNC OUT TADDR;
+ 
+   PRESENT 'h'35                             NEXT 'h'38 OUT BSYNC OUT BDIN;
+ 
+	PRESENT 'h'36                        NEXT 'h'00;
+	PRESENT 'h'37                        NEXT 'h'00;
+
+   PRESENT 'h'38 IF !RPLY                    NEXT 'h'38 OUT BSYNC OUT BDIN;
+                 IF  RPLY                    NEXT 'h'39 OUT BSYNC OUT BDIN OUT LD;
+ 
+   PRESENT 'h'39                             NEXT 'h'3A OUT BSYNC OUT BDIN OUT LD;
+ 
+   PRESENT 'h'3A                             NEXT 'h'3B OUT BSYNC OUT BDIN;
+ 
+   PRESENT 'h'3B IF  RPLY                    NEXT 'h'3B OUT BSYNC;
+                 IF !RPLY                    NEXT 'h'3C;
+ 
+   PRESENT 'h'3C                             NEXT 'h'10           OUT DMG;
+
+	PRESENT 'h'3D                        NEXT 'h'00;
+	PRESENT 'h'3E                        NEXT 'h'00;
+	PRESENT 'h'3F                        NEXT 'h'00;
+
+}
+
+TSACK         =  DMA5;
+BWTBT         =  TADDR & !DMARD;
+BBS7          = 'b'0;
+BDOUT         =  TDOUT;
