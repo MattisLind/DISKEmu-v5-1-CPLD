@@ -160,6 +160,7 @@ PINNODE       =  CWTBT;
 PINNODE       =  TDOUT1;
 PINNODE       =  RIAKI1;
 PINNODE       =  RIAKI2;
+PINNODE       =  ROMEN;
 
 FIELD  RS     = [RS2..0];
 
@@ -177,14 +178,14 @@ $DEFINE RLV12ADDR 'o'174400..174417
 CWTBT.d       =  BWTBT;
 CWTBT.ck      =  BSYNC;
 
-INTQ.d        =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !MSCP &  CRDY
-              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP          &  BWTBT
-              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP          & !BWTBT & !BDAL1.io
-              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP &  CRDY  & !BWTBT &  BDAL1.io;
+INTQ.d        =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !MSCP  &  CRDY
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP           &  BWTBT
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP           & !BWTBT & !BDAL1.io
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP  &  CRDY  & !BWTBT &  BDAL1.io;
 
 $IFDEF ROMADDR
 APPEND
-INTQ.d        =  RBS7 & [RDAL12..1]:[ROMADDR];
+INTQ.d        =  RBS7 & [RDAL12..1]:[ROMADDR]      &  ROMEN;
 $ENDIF
         
 INTQ.ck       =  BSYNC;
@@ -195,7 +196,7 @@ CSR.d         =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !MSCP
 
 $IFDEF ROMADDR
 APPEND
-CSR.d         =  RBS7 & [RDAL12..1]:[ROMADDR];
+CSR.d         =  RBS7 & [RDAL12..1]:[ROMADDR]      &  ROMEN;
 $ENDIF
 
 CSR.ck        =  BSYNC;
@@ -208,13 +209,13 @@ ROM.d         = [BDAL12..1].io:[ROMADDR];
 ROM.ck        =  BSYNC;
 $ENDIF
 
-ENA.d         =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !MSCP & !BWTBT &  CRDY
-              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP & !BWTBT          & !BDAL1.io   
-              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP & !BWTBT &  CRDY  &  BDAL1.io;
+ENA.d         =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !MSCP  & !BWTBT &  CRDY
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP  & !BWTBT          & !BDAL1.io   
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP  & !BWTBT &  CRDY  &  BDAL1.io;
 
 $IFDEF ROMADDR
 APPEND
-ENA.d         =  BBS7 & [BDAL12..1].io:[ROMADDR]           & !BWTBT;
+ENA.d         =  BBS7 & [BDAL12..1].io:[ROMADDR]   &  ROMEN & !BWTBT;
 $ENDIF
 
 ENA.ck        =  BSYNC;
@@ -268,6 +269,13 @@ BRPLY		=  RIAKI2 &  DACK  &  INTI &  BDIN;
 
 [DD15..0].ar	=  LD & ![BDAL15..0].io;
 [DD15..0].ap	=  LD &  [BDAL15..0].io;
+
+/*
+	ROM Enable
+ */
+ROMEN.d         =  AD0.io;
+ROMEN.ce        =  RS:['d'5];
+ROMEN.ck        =  WR;
 
 /*
 	Collect unused inputs to prevent the CPLD enables the buffers
