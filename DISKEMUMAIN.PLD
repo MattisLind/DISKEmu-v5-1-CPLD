@@ -14,6 +14,7 @@ PROPERTY ATMEL {Preassign KEEP};
 PROPERTY ATMEL {SOFT_BUFFER=I14, I7, BUSEN};
 PROPERTY ATMEL {open_collector=BRPLY, BIRQ, BSACK};
 
+$DEFINE MSCPPIN 1
 /*
 	CPLD Design File for the new generation Q-BUS disk emulator
 	
@@ -121,7 +122,9 @@ PIN        75 =  INTI;	/* IACK Cycle Interrupt						*/
 PIN        72 = !INTQ;	/* Q-BUS Cycle Interrupt					*/
 PIN        71 =  ACK;	/* Acknowledge interrupt					*/
 PIN        70 =  CRDY;	/* Controller ready, if de-asserted Q-Bus reads return zero	*/
+$IFDEF MSCPPIN
 PIN        83 =  MSCP;	/* asserted: MSCP Emulation, de-asserted: RVL12 Emulation	*/
+$ENDIF
 PIN        69 =  IRQ;	/* Request interrupt						*/
 PIN        84 =  INIT;
 
@@ -161,13 +164,19 @@ PINNODE       =  TDOUT1;
 PINNODE       =  RIAKI1;
 PINNODE       =  RIAKI2;
 PINNODE       =  ROMEN;
+PINNODE       =  ALT;
+$IFNDEF MSCPPIN
+PINNODE       =  MSCP;
+$ENDIF
 
 FIELD  RS     = [RS2..0];
 
 /************************** Definitions   *********************************************/
 $DEFINE MSCPADDR  'o'172150..172153
+$DEFINE MSCPALTA  'o'160334..160337
 $DEFINE RLV12ADDR 'o'174400..174417
-/*$DEFINE ROMADDR   'o'173000..173017*/
+$DEFINE RLV12ALTA 'o'174420..174437
+$DEFINE ROMADDR   'o'173000..173017
 
 
 
@@ -178,25 +187,32 @@ $DEFINE RLV12ADDR 'o'174400..174417
 CWTBT.d       =  BWTBT;
 CWTBT.ck      =  BSYNC;
 
-INTQ.d        =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !MSCP  &  CRDY
-              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP           &  BWTBT
-              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP           & !BWTBT & !BDAL1.io
-              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP  &  CRDY  & !BWTBT &  BDAL1.io;
+INTQ.d        =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !ALT & !MSCP  &  CRDY
+              #  BBS7 & [BDAL12..1].io:[RLV12ALTA] &  ALT & !MSCP  &  CRDY
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  & !ALT &  MSCP  &  BWTBT
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  & !ALT &  MSCP  & !BWTBT & !BDAL1.io   
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  & !ALT &  MSCP  & !BWTBT &  BDAL1.io &  CRDY
+              #  BBS7 & [BDAL12..1].io:[MSCPALTA]  &  ALT &  MSCP  &  BWTBT
+              #  BBS7 & [BDAL12..1].io:[MSCPALTA]  &  ALT &  MSCP  & !BWTBT & !BDAL1.io   
+              #  BBS7 & [BDAL12..1].io:[MSCPALTA]  &  ALT &  MSCP  & !BWTBT &  BDAL1.io &  CRDY;
+
 
 $IFDEF ROMADDR
 APPEND
-INTQ.d        =  RBS7 & [RDAL12..1]:[ROMADDR]      &  ROMEN;
+INTQ.d        =  BBS7 & [BDAL12..1].io:[ROMADDR]      &  ROMEN;
 $ENDIF
         
 INTQ.ck       =  BSYNC;
 INTQ.ar       =  ACK;
 
-CSR.d         =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !MSCP  
-              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP;
+CSR.d         =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !ALT & !MSCP  
+              #  BBS7 & [BDAL12..1].io:[RLV12ALTA] &  ALT & !MSCP  
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  & !ALT &  MSCP  
+              #  BBS7 & [BDAL12..1].io:[MSCPALTA]  &  ALT &  MSCP;
 
 $IFDEF ROMADDR
 APPEND
-CSR.d         =  RBS7 & [RDAL12..1]:[ROMADDR]      &  ROMEN;
+CSR.d         =  BBS7 & [BDAL12..1].io:[ROMADDR]      &  ROMEN;
 $ENDIF
 
 CSR.ck        =  BSYNC;
@@ -209,9 +225,12 @@ ROM.d         = [BDAL12..1].io:[ROMADDR];
 ROM.ck        =  BSYNC;
 $ENDIF
 
-ENA.d         =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !MSCP  & !BWTBT &  CRDY
-              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP  & !BWTBT          & !BDAL1.io   
-              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  &  MSCP  & !BWTBT &  CRDY  &  BDAL1.io;
+ENA.d         =  BBS7 & [BDAL12..1].io:[RLV12ADDR] & !ALT & !MSCP  & !BWTBT &  CRDY
+              #  BBS7 & [BDAL12..1].io:[RLV12ALTA] &  ALT & !MSCP  & !BWTBT &  CRDY
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  & !ALT &  MSCP  & !BWTBT          & !BDAL1.io   
+              #  BBS7 & [BDAL12..1].io:[MSCPADDR]  & !ALT &  MSCP  & !BWTBT &  CRDY  &  BDAL1.io
+              #  BBS7 & [BDAL12..1].io:[MSCPALTA]  &  ALT &  MSCP  & !BWTBT          & !BDAL1.io   
+              #  BBS7 & [BDAL12..1].io:[MSCPALTA]  &  ALT &  MSCP  & !BWTBT &  CRDY  &  BDAL1.io;
 
 $IFDEF ROMADDR
 APPEND
@@ -274,8 +293,24 @@ BRPLY		=  RIAKI2 &  DACK  &  INTI &  BDIN;
 	ROM Enable
  */
 ROMEN.d         =  AD0.io;
-ROMEN.ce        =  RS:['d'5];
+ROMEN.ce        =  RS:['d'6];
 ROMEN.ck        =  WR;
+
+/*
+	Primary/Secondary
+ */
+ALT.d           =  AD1.io;
+ALT.ce          =  RS:['d'6];
+ALT.ck          =  WR;
+
+/*
+	MSCP / RLV12
+ */
+$IFNDEF MSCPPIN
+MSCP.d          =  AD2.io;
+MSCP.ce         =  RS:['d'6];
+MSCP.ck         =  WR;
+$ENDIF
 
 /*
 	Collect unused inputs to prevent the CPLD enables the buffers

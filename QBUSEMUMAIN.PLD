@@ -13,6 +13,8 @@ PROPERTY ATMEL {Cascade_logic ON};
 PROPERTY ATMEL {Preassign KEEP};
 PROPERTY ATMEL {SOFT_BUFFER=I14, I7};
 
+$DEFINE MSCPPIN 1
+
 /*
 	CPLD Design File for the new generation Q-BUS disk emulator
 	
@@ -145,7 +147,9 @@ PIN        75 =  INTI;	/* IACK Cycle Interrupt						*/
 PIN        72 = !INTQ;	/* Q-BUS Cycle Interrupt					*/
 PIN        71 =  ACK;	/* Acknowledge interrupt					*/
 PIN        70 =  CRDY;	/* Controller ready, if de-asserted Q-Bus reads return zero	*/
+$IFDEF MSCPPIN
 PIN        83 =  MSCP;	/* asserted: MSCP Emulation, de-asserted: RVL12 Emulation	*/
+$ENDIF
 PIN        69 =  IRQ;	/* Request interrupt						*/
 
 /************************** CPLD-to-CPLD  *********************************************/
@@ -171,12 +175,17 @@ PINNODE       =  TDOUT1;
 PINNODE       =  RIAKI1;
 PINNODE       =  RIAKI2;
 PINNODE       =  ROMEN;
-
+PINNODE       =  ALT;
+$IFNDEF MSCPPIN
+PINNODE       =  MSCP;
+$ENDIF
 FIELD  RS     = [RS2..0];
 
 /************************** Definitions   *********************************************/
 $DEFINE MSCPADDR  'o'172150..172153
+$DEFINE MSCPALTA  'o'160334..160337
 $DEFINE RLV12ADDR 'o'174400..174417
+$DEFINE RLV12ALTA 'o'174420..174437
 $DEFINE ROMADDR   'o'173000..173177
 
 /************************** Equations     *********************************************/
@@ -186,10 +195,14 @@ $DEFINE ROMADDR   'o'173000..173177
 CWTBT.d       =  RWTBT;
 CWTBT.ck      =  RSYNC;
 
-INTQ.d        =  RBS7 & [RDAL12..1]:[RLV12ADDR] & !MSCP  &  CRDY
-              #  RBS7 & [RDAL12..1]:[MSCPADDR]  &  MSCP  &  RWTBT
-              #  RBS7 & [RDAL12..1]:[MSCPADDR]  &  MSCP  & !RWTBT & !RDAL1   
-              #  RBS7 & [RDAL12..1]:[MSCPADDR]  &  MSCP  & !RWTBT &  RDAL1 &  CRDY;
+INTQ.d        =  RBS7 & [RDAL12..1]:[RLV12ADDR] & !ALT & !MSCP  &  CRDY
+              #  RBS7 & [RDAL12..1]:[RLV12ALTA] &  ALT & !MSCP  &  CRDY
+              #  RBS7 & [RDAL12..1]:[MSCPADDR]  & !ALT &  MSCP  &  RWTBT
+              #  RBS7 & [RDAL12..1]:[MSCPADDR]  & !ALT &  MSCP  & !RWTBT & !RDAL1   
+              #  RBS7 & [RDAL12..1]:[MSCPADDR]  & !ALT &  MSCP  & !RWTBT &  RDAL1 &  CRDY
+              #  RBS7 & [RDAL12..1]:[MSCPALTA]  &  ALT &  MSCP  &  RWTBT
+              #  RBS7 & [RDAL12..1]:[MSCPALTA]  &  ALT &  MSCP  & !RWTBT & !RDAL1   
+              #  RBS7 & [RDAL12..1]:[MSCPALTA]  &  ALT &  MSCP  & !RWTBT &  RDAL1 &  CRDY;
 
 $IFDEF ROMADDR
 APPEND
@@ -199,9 +212,12 @@ $ENDIF
 INTQ.ck       =  RSYNC;
 INTQ.ar       =  ACK;
         
-ENA.d         =  RBS7 & [RDAL12..1]:[RLV12ADDR] & !MSCP  & !RWTBT &  CRDY
-              #  RBS7 & [RDAL12..1]:[MSCPADDR]  &  MSCP  & !RWTBT          & !RDAL1   
-              #  RBS7 & [RDAL12..1]:[MSCPADDR]  &  MSCP  & !RWTBT &  CRDY  &  RDAL1;
+ENA.d         =  RBS7 & [RDAL12..1]:[RLV12ADDR] & !ALT & !MSCP  & !RWTBT &  CRDY
+              #  RBS7 & [RDAL12..1]:[RLV12ALTA] &  ALT & !MSCP  & !RWTBT &  CRDY
+              #  RBS7 & [RDAL12..1]:[MSCPADDR]  & !ALT &  MSCP  & !RWTBT          & !RDAL1   
+              #  RBS7 & [RDAL12..1]:[MSCPADDR]  & !ALT &  MSCP  & !RWTBT &  CRDY  &  RDAL1
+              #  RBS7 & [RDAL12..1]:[MSCPALTA]  &  ALT &  MSCP  & !RWTBT          & !RDAL1   
+              #  RBS7 & [RDAL12..1]:[MSCPALTA]  &  ALT &  MSCP  & !RWTBT &  CRDY  &  RDAL1;
 
 $IFDEF ROMADDR
 APPEND
@@ -210,8 +226,10 @@ $ENDIF
 
 ENA.ck        =  RSYNC;
         
-CSR.d         =  RBS7 & [RDAL12..1]:[RLV12ADDR] & !MSCP  
-              #  RBS7 & [RDAL12..1]:[MSCPADDR]  &  MSCP;
+CSR.d         =  RBS7 & [RDAL12..1]:[RLV12ADDR] & !ALT & !MSCP  
+              #  RBS7 & [RDAL12..1]:[RLV12ALTA] &  ALT & !MSCP  
+              #  RBS7 & [RDAL12..1]:[MSCPADDR]  & !ALT &  MSCP  
+              #  RBS7 & [RDAL12..1]:[MSCPALTA]  &  ALT &  MSCP;
 
 $IFDEF ROMADDR
 APPEND
@@ -297,9 +315,24 @@ TRPLY		=  RIAKI2 & RDIN & DACK & INTI;
 	ROM Enable
  */
 ROMEN.d         =  AD0.io;
-ROMEN.ce        =  RS:['d'5];
+ROMEN.ce        =  RS:['d'6];
 ROMEN.ck        =  WR;
 
+/*
+	Primary/Secondary
+ */
+ALT.d           =  AD1.io;
+ALT.ce          =  RS:['d'6];
+ALT.ck          =  WR;
+
+/*
+	MSCP / RLV12
+ */
+$IFNDEF MSCPPIN
+MSCP.d          =  AD2.io;
+MSCP.ce         =  RS:['d'6];
+MSCP.ck         =  WR;
+$ENDIF
 /*
 	DMA Address Register and DMA direction bit
  */
