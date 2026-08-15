@@ -46,8 +46,11 @@ Initial Version
 
 Add write-only device register 6. Bit 0, when set, additionally decodes the
 ROM addresses 173000<sub>8</sub>..173177<sub>8</sub>. This allows the MSCP
-Emulator also act as small, 64. words, boot ROM, sufficient for a bootstrap
-to DU:
+Emulator also to act as small, 64. words, boot ROM, sufficient for a bootstrap
+to DU:, or in case of RLV12 emulation firmware a small bootstrap for DL: 
+
+A bootstrap at address 173000<sub>8</sub> is especially useful in case you
+set the PDP-11 to autostart the ROM at 173000<sub>8</sub>.
 
 Requires MSCP Emulator firmware for the Microcontroller v1.3.0 or higher
 
