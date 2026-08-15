@@ -36,3 +36,31 @@ version for the QBUS64 hardware.
 This is the secondary CPLD which implements the DMA state machine. This is the
 version for the QBUS64 hardware.
 
+## Versions
+
+### v1.0.0
+
+Initial Version
+
+### v1.1.0
+
+Add write-only device register 6. Bit 0, when set, additionally decodes the
+ROM addresses 173000<sub>8</sub>..173177<sub>8</sub>. This allows the MSCP
+Emulator also act as small, 64. words, boot ROM, sufficient for a bootstrap
+to DU:
+
+Requires MSCP Emulator firmware for the Microcontroller v1.3.0 or higher
+
+### v2.0.0
+
+Bit 1 of device register 6 now selects between primary and secondary
+device register address. When cleared the primary address for the MSCP
+or RLV12 emulation is selected, which is 172150<sub>8</sub> or 174400<sub>8</sub>
+respectively. When set the secondary device register addresses are
+activated, 160334<sub>8</sub> or 174420<sub>8</sub>. 
+
+Pin MSCP of the CPLD is used to switch between MSCP and RLV12 device
+register addresses. This is subject to change and be replaced by bit 2
+of register 6 with a future release.
+
+Requires MSCP Emulator firmware for the Microcontroller v2.0.0 or higher
