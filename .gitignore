@@ -15,3 +15,9 @@
 .DS_Store
 Archive/*
 
+# Automated compiler/fitter outputs
+/build/
+
+# Python build/verification helpers
+__pycache__/
+*.py[cod]
