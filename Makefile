@@ -42,3 +42,30 @@ check-equations:
 .PHONY: test
 test:
 	python3 -m unittest discover -s tests -v
+
+# SVF preparation and parser checks are offline. Hardware targets are explicit.
+SVF_JED_DIR ?= $(VHDL_OUT)
+SVF_OUT ?= build/svf
+JTAG_BACKEND ?= docker
+ifeq ($(JTAG_BACKEND),host)
+JTAG_RUN := $(TOOLCHAIN)/jtag.sh
+else ifeq ($(JTAG_BACKEND),docker)
+JTAG_RUN := $(TOOLCHAIN)/jtag-in-docker.sh
+else
+$(error JTAG_BACKEND must be host or docker)
+endif
+JTAG_OPTIONS ?=
+
+.PHONY: svf jtag-check jtag-scan program
+svf:
+	"$(TOOLCHAIN)/jtag-in-docker.sh" convert "$(SVF_JED_DIR)/QBUSEMUMAIN/QBUSEMUMAIN.jed" -d ATF1508AS -o "$(SVF_OUT)/QBUSEMUMAIN.svf"
+	"$(TOOLCHAIN)/jtag-in-docker.sh" convert "$(SVF_JED_DIR)/QBUSEMUDMA/QBUSEMUDMA.jed" -d ATF1504AS -o "$(SVF_OUT)/QBUSEMUDMA.svf"
+
+jtag-check:
+	"$(TOOLCHAIN)/jtag-in-docker.sh" check --main "$(SVF_OUT)/QBUSEMUMAIN.svf" --dma "$(SVF_OUT)/QBUSEMUDMA.svf"
+
+jtag-scan:
+	"$(JTAG_RUN)" scan $(JTAG_OPTIONS)
+
+program: svf
+	"$(JTAG_RUN)" program --main "$(SVF_OUT)/QBUSEMUMAIN.svf" --dma "$(SVF_OUT)/QBUSEMUDMA.svf" $(JTAG_OPTIONS)

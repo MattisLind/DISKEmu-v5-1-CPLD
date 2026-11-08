@@ -129,3 +129,13 @@ Builds check device/package, 10 ns speed grade, fixed pins, JTAG ON, security OF
 fuse count and JEDEC checksums. A failed build removes the previous programming
 file and manifests for that design. Successful fitting does not establish
 physical timing closure or replace hardware testing.
+
+## FT2232H programming
+
+From the parent repository, `make cpld-svf` converts existing JEDEC outputs and
+`make cpld-jtag-check` validates the vectors offline. `make cpld-scan` and
+`make cpld-program` automatically use a native OpenOCD bridge on macOS and direct
+container USB on Linux (`ATF15XX_USB_DEVICE` selects the device).
+`JTAG_BACKEND=host` selects an already-installed native OpenOCD instead. See [the programming guide](../tools/atf15xx-yosys-docker/PROGRAMMING.md)
+for setup, standalone commands and validation limits. No hardware programming
+has yet been tested.
